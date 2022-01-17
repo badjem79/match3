@@ -226,7 +226,9 @@ function Timer.update (dt, group)
         group = defaultGroup
     end
     for index = #group, 1, -1 do
-        group[index]:update(dt)
+        if group[index] then
+            group[index]:update(dt)
+        end
     end
 end
 

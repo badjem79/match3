@@ -60,14 +60,18 @@ function PlayState:enter(params)
     -- grab level # from the params we're passed
     self.level = params.level
 
+    if params.board then
+        params.board.level = self.level
+    end
+
     -- spawn a board and place it toward the right
-    self.board = params.board or Board(VIRTUAL_WIDTH - 272, 16)
+    self.board = params.board or Board(VIRTUAL_WIDTH - 272, 16, self.level)
 
     -- grab score from params if it was passed
     self.score = params.score or 0
 
     -- score we have to reach to get to the next level
-    self.scoreGoal = self.level * 1.25 * 1000
+    self.scoreGoal = self.level * 2.5 * 1000
 end
 
 function PlayState:update(dt)
@@ -143,22 +147,8 @@ function PlayState:update(dt)
                 self.highlightedTile = nil
             else
                 
-                -- swap grid positions of tiles
-                local tempX = self.highlightedTile.gridX
-                local tempY = self.highlightedTile.gridY
-
                 local newTile = self.board.tiles[y][x]
-
-                self.highlightedTile.gridX = newTile.gridX
-                self.highlightedTile.gridY = newTile.gridY
-                newTile.gridX = tempX
-                newTile.gridY = tempY
-
-                -- swap tiles in the tiles table
-                self.board.tiles[self.highlightedTile.gridY][self.highlightedTile.gridX] =
-                    self.highlightedTile
-
-                self.board.tiles[newTile.gridY][newTile.gridX] = newTile
+                self.board:swapTiles(self.highlightedTile, newTile)
 
                 -- tween coordinates between the two so they swap
                 Timer.tween(0.1, {
@@ -168,26 +158,69 @@ function PlayState:update(dt)
                 
                 -- once the swap is finished, we can tween falling blocks as needed
                 :finish(function()
-                    self:calculateMatches()
+                    local matches = self.board:calculateMatches()
+                    if (matches) then
+                        self:calculateMatches(matches)
+                    else
+                        -- no matches so we rollback the tiles move
+                        self.board:swapTiles(newTile, self.highlightedTile)
+                        gSounds['error']:play()
+
+                        -- tween coordinates between the two so they swap
+                        Timer.tween(0.1, {
+                            [self.highlightedTile] = {x = newTile.x, y = newTile.y},
+                            [newTile] = {x = self.highlightedTile.x, y = self.highlightedTile.y}
+                        })
+                    end
                 end)
             end
+        end
+        if love.keyboard.wasPressed('s') then
+            self:shuffle()
+        end
+        if love.keyboard.wasPressed('h') then
+            local m = self.board:possibleMoves()
+            local tile = m[math.random(#m)]
+            
+            Timer.tween(0.25, {
+                [tile] = {rotation = -20}
+            })
+            :finish(function()
+                Timer.tween(0.5, {
+                    [tile] = {rotation = 20}
+                })
+                :finish(function()
+                    Timer.tween(0.25, {
+                        [tile] = {rotation = 0}
+                    })
+                end)
+            end)
         end
     end
 
     Timer.update(dt)
 end
-
+function PlayState:shuffle()
+    Timer.tween(0.15, self.board:shuffleH())
+    :finish(function()
+        Timer.tween(0.15, self.board:shuffleV())
+        :finish(function()
+            local moves = self.board:possibleMoves()
+            local matches = self.board:calculateMatches()
+            if not moves or matches then
+                self:shuffle()
+            end
+        end)
+    end)
+end
 --[[
     Calculates whether any matches were found on the board and tweens the needed
     tiles to their new destinations if so. Also removes tiles from the board that
     have matched and replaces them with new randomized tiles, deferring most of this
     to the Board class.
 ]]
-function PlayState:calculateMatches()
+function PlayState:calculateMatches(matches)
     self.highlightedTile = nil
-
-    -- if we have any matches, remove them and tween the falling blocks that result
-    local matches = self.board:calculateMatches()
     
     if matches then
         gSounds['match']:stop()
@@ -195,7 +228,8 @@ function PlayState:calculateMatches()
 
         -- add score for each match
         for k, match in pairs(matches) do
-            self.score = self.score + #match * 50
+            self.score = self.score + #match * 50 * match[1].variety -- get also the tile variety
+            self.timer = self.timer + #match
         end
 
         -- remove any tiles that matched from the board, making empty spaces
@@ -207,14 +241,17 @@ function PlayState:calculateMatches()
         -- tween new tiles that spawn from the ceiling over 0.25s to fill in
         -- the new upper gaps that exist
         Timer.tween(0.25, tilesToFall):finish(function()
-            
+            local matches = self.board:calculateMatches()
             -- recursively call function in case new matches have been created
             -- as a result of falling blocks once new blocks have finished falling
-            self:calculateMatches()
+            self:calculateMatches(matches)
         end)
     
     -- if no matches, we can continue playing
     else
+        if not self.board:possibleMoves() then
+            self:shuffle() -- mix tiles until moves
+        end
         self.canInput = true
     end
 end
@@ -251,7 +288,7 @@ function PlayState:render()
 
     -- GUI text
     love.graphics.setColor(56/255, 56/255, 56/255, 234/255)
-    love.graphics.rectangle('fill', 16, 16, 186, 116, 4)
+    love.graphics.rectangle('fill', 16, 16, 186, 144, 4)
 
     love.graphics.setColor(99/255, 155/255, 1, 1)
     love.graphics.setFont(gFonts['medium'])
@@ -259,4 +296,5 @@ function PlayState:render()
     love.graphics.printf('Score: ' .. tostring(self.score), 20, 52, 182, 'center')
     love.graphics.printf('Goal : ' .. tostring(self.scoreGoal), 20, 80, 182, 'center')
     love.graphics.printf('Timer: ' .. tostring(self.timer), 20, 108, 182, 'center')
+    love.graphics.printf('Press [H] for HELP', 20, 136, 182, 'center')
 end

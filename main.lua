@@ -27,6 +27,8 @@
     http://cpetry.github.io/TextureGenerator-Online/
 ]]
 
+io.stdout:setvbuf("no")
+
 -- initialize our nearest-neighbor filter
 love.graphics.setDefaultFilter('nearest', 'nearest')
 
@@ -62,7 +64,7 @@ function love.load()
 
     -- set music to loop and start
     gSounds['music']:setLooping(true)
-    gSounds['music']:play()
+    --gSounds['music']:play()
 
     -- initialize state machine with all state-returning functions
     gStateMachine = StateMachine {
@@ -85,7 +87,6 @@ function love.resize(w, h)
 end
 
 function love.keypressed(key)
-    
     -- add to our table of keys pressed this frame
     love.keyboard.keysPressed[key] = true
 end

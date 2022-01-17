@@ -13,9 +13,10 @@
 
 Board = Class{}
 
-function Board:init(x, y)
+function Board:init(x, y, level)
     self.x = x
     self.y = y
+    self.level = level
     self.matches = {}
 
     self:initializeTiles()
@@ -24,26 +25,117 @@ end
 function Board:initializeTiles()
     self.tiles = {}
 
+    self.baseColors = {}
+
+    local onlyColor = (MIN_NUM_TILES_TYPES + self.level) <= 18 -- only different colors (when level <= 18)
+
+    for i = 1, MIN_NUM_TILES_TYPES + self.level do
+        local newColor = {
+            color = math.random(18),
+            variety = math.min(math.random(1, self.level), 6)
+        }
+        while self:contains(newColor, onlyColor) do
+            newColor = {
+                color = math.random(18),
+                variety = math.min(math.random(1, self.level), 6)
+            }
+        end
+        table.insert(self.baseColors, newColor);
+    end
+
     for tileY = 1, 8 do
         
         -- empty table that will serve as a new row
         table.insert(self.tiles, {})
 
         for tileX = 1, 8 do
-            
+            local baseColor = self.baseColors[math.random(#self.baseColors)]
             -- create a new tile at X,Y with a random color and variety
-            table.insert(self.tiles[tileY], Tile(tileX, tileY, math.random(18), math.random(6)))
+            table.insert(self.tiles[tileY], Tile(tileX, tileY, baseColor.color, baseColor.variety))
         end
     end
 
-    while self:calculateMatches() do
-        
+    local m = self:calculateMatches()
+    if m then
         -- recursively initialize if matches were returned so we always have
         -- a matchless board on start
         self:initializeTiles()
+    elseif m == false then
+        self:possibleMoves()
     end
 end
 
+function Board:contains(baseColor, onlyColor)
+    for i=1, #self.baseColors do
+       if (self.baseColors.color == baseColor.color and onlyColor) or (self.baseColors.color == baseColor.color and self.baseColors.variety == baseColor.variety) then 
+          return true
+       end
+    end
+    return false
+ end
+
+ function Board:possibleMoves()
+    local tiles = {} -- take note of movable tiles for future highlights...
+    for y = 1, 8 do
+        for x = 1, 8 do
+            -- try increment x
+            if x < 8 then
+                local newX = x + 1;
+                self:swapTiles(self.tiles[y][x], self.tiles[y][newX])
+                if self:calculateMatches() then
+                    table.insert(tiles, self.tiles[y][newX])
+                end
+                self:swapTiles(self.tiles[y][x], self.tiles[y][newX])
+            end
+            -- try increment y
+            if y < 8 then
+                local newY = y + 1;
+                self:swapTiles(self.tiles[y][x], self.tiles[newY][x])
+                if self:calculateMatches() then
+                    table.insert(tiles, self.tiles[newY][x])
+                end
+                self:swapTiles(self.tiles[y][x], self.tiles[newY][x])
+            end
+        end
+    end
+    print("Possible Moves:" .. #tiles);
+    if(#tiles > 0) then
+        print("X:" .. (tiles[1].x/32+1) .. " Y:" .. (tiles[1].y/32+1))
+    end
+    return #tiles > 0 and tiles or false
+ end
+
+ function Board:shuffleH()
+    local tweens = {}
+    local swapped = {}
+    -- shuffle by row
+    for y = 1, 8 do
+        local x = math.random(4)
+        local j = math.random(5, 8)
+
+        self:swapTiles(self.tiles[y][x], self.tiles[y][j])
+        
+        tweens[self.tiles[y][x]] = {x = self.tiles[y][j].x, y = self.tiles[y][j].y}
+        tweens[self.tiles[y][j]] = {x = self.tiles[y][x].x, y = self.tiles[y][x].y}
+    end
+    return tweens
+ end
+
+ function Board:shuffleV()
+    local tweens = {}
+    local swapped = {}
+    -- shuffle by row
+    for x = 1, 8 do
+        local y = math.random(4)
+        local j = math.random(5, 8)
+
+        self:swapTiles(self.tiles[y][x], self.tiles[j][x])
+        
+        tweens[self.tiles[y][x]] = {x = self.tiles[j][x].x, y = self.tiles[j][x].y}
+        tweens[self.tiles[j][x]] = {x = self.tiles[y][x].x, y = self.tiles[y][x].y}
+    end
+    return tweens
+ end
 --[[
     Goes left to right, top to bottom in the board, calculating matches by counting consecutive
     tiles of the same color. Doesn't need to check the last tile in every row or column if the 
@@ -75,12 +167,26 @@ function Board:calculateMatches()
                 -- if we have a match of 3 or more up to now, add it to our matches table
                 if matchNum >= 3 then
                     local match = {}
-
+                    local lineExplosion = false
                     -- go backwards from here by matchNum
                     for x2 = x - 1, x - matchNum, -1 do
                         
                         -- add each tile to the match that's in that match
                         table.insert(match, self.tiles[y][x2])
+
+                        -- verify if any tile of the match is explosive
+                        if self.tiles[y][x2].explosive then
+                            lineExplosion = true
+                        end
+
+                    end
+
+                    if lineExplosion then
+                        -- add all line
+                        match = {}
+                        for x2 = 8, 1, -1 do
+                            table.insert(match, self.tiles[y][x2])
+                        end
                     end
 
                     -- add this match to our total matches table
@@ -99,10 +205,24 @@ function Board:calculateMatches()
         -- account for the last row ending with a match
         if matchNum >= 3 then
             local match = {}
-            
+            local lineExplosion = false
+
             -- go backwards from end of last row by matchNum
             for x = 8, 8 - matchNum + 1, -1 do
                 table.insert(match, self.tiles[y][x])
+
+                -- verify if any tile of the match is explosive
+                if self.tiles[y][x].explosive then
+                    lineExplosion = true
+                end
+            end
+
+            if lineExplosion then
+                -- add all line
+                match = {}
+                for x = 8, 1, -1 do
+                    table.insert(match, self.tiles[y][x])
+                end
             end
 
             table.insert(matches, match)
@@ -124,11 +244,22 @@ function Board:calculateMatches()
 
                 if matchNum >= 3 then
                     local match = {}
-
+                    local columnExplosion = false
                     for y2 = y - 1, y - matchNum, -1 do
                         table.insert(match, self.tiles[y2][x])
+                        -- verify if any tile of the match is explosive
+                        if self.tiles[y2][x].explosive then
+                            columnExplosion = true
+                        end
                     end
 
+                    if columnExplosion then
+                        -- add all column
+                        match = {}
+                        for y2 = 8, 1, -1 do
+                            table.insert(match, self.tiles[y2][x])
+                        end
+                    end
                     table.insert(matches, match)
                 end
 
@@ -144,12 +275,23 @@ function Board:calculateMatches()
         -- account for the last column ending with a match
         if matchNum >= 3 then
             local match = {}
-            
+            local columnExplosion = false
             -- go backwards from end of last row by matchNum
             for y = 8, 8 - matchNum + 1, -1 do
                 table.insert(match, self.tiles[y][x])
+                -- verify if any tile of the match is explosive
+                if self.tiles[y][x].explosive then
+                    columnExplosion = true
+                end
             end
 
+            if columnExplosion then
+                -- add all column
+                match = {}
+                for y = 8, 1, -1 do
+                    table.insert(match, self.tiles[y][x])
+                end
+            end
             table.insert(matches, match)
         end
     end
@@ -161,14 +303,41 @@ function Board:calculateMatches()
     return #self.matches > 0 and self.matches or false
 end
 
+function Board:swapTiles(tile1, tile2)
+
+    -- swap grid positions of tiles
+    local tempX = tile1.gridX
+    local tempY = tile1.gridY
+
+    tile1.gridX = tile2.gridX
+    tile1.gridY = tile2.gridY
+    tile2.gridX = tempX
+    tile2.gridY = tempY
+
+    -- swap tiles in the tiles table
+    self.tiles[tile1.gridY][tile1.gridX] = tile1
+    self.tiles[tile2.gridY][tile2.gridX] = tile2
+
+end
 --[[
     Remove the matches from the Board by just setting the Tile slots within
     them to nil, then setting self.matches to nil.
 ]]
 function Board:removeMatches()
     for k, match in pairs(self.matches) do
+        local toExclude = 0
+        if #match == 5 or #match == 4 then
+            toExclude = 3
+        end
         for k, tile in pairs(match) do
-            self.tiles[tile.gridY][tile.gridX] = nil
+            if k == toExclude then
+                tile:startShine()
+            else
+                if tile.explosive then
+                    tile:stopShine()
+                end
+                self.tiles[tile.gridY][tile.gridX] = nil
+            end
         end
     end
 
@@ -239,8 +408,13 @@ function Board:getFallingTiles()
             -- if the tile is nil, we need to add a new one
             if not tile then
 
+                local baseColor = self.baseColors[math.random(#self.baseColors)]
+                
                 -- new tile with random color and variety
-                local tile = Tile(x, y, math.random(18), math.random(6))
+                local tile = Tile(x, y, baseColor.color, baseColor.variety)
+                if math.random(RANDOM_SHINE_TILE) == RANDOM_SHINE_TILE then
+                    tile:startShine()
+                end
                 tile.y = -32
                 self.tiles[y][x] = tile
 

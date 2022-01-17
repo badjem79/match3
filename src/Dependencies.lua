@@ -68,3 +68,7 @@ gFonts = {
     ['medium'] = love.graphics.newFont('fonts/font.ttf', 16),
     ['large'] = love.graphics.newFont('fonts/font.ttf', 32)
 }
+
+MIN_NUM_TILES_TYPES = 5
+
+RANDOM_SHINE_TILE = 10
