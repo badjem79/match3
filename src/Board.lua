@@ -428,7 +428,24 @@ function Board:getFallingTiles()
 
     return tweens
 end
+function Board:getTileFromCoordinate(cx, cy)
 
+    local foundX = 0
+    local foundY = 0
+
+    -- absolute to relative conversion
+    cx = cx - self.x
+    cy = cy - self.y
+
+    -- is inside board boundries
+    if cx > 0 and cx <= TILE_SIZE * 8 and cy > 0 and cy <= TILE_SIZE * 8 then
+        foundX = math.ceil( cx/TILE_SIZE )
+        foundY = math.ceil( cy/TILE_SIZE )
+    end
+
+    return foundX, foundY
+    
+end
 function Board:render()
     for y = 1, #self.tiles do
         for x = 1, #self.tiles[1] do

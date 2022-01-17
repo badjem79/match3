@@ -63,6 +63,7 @@ function Tile:stopShine()
         self.colorTimer = null
     end
 end
+
 function Tile:render(x, y)
     
     -- draw shadow
