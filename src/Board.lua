@@ -27,9 +27,11 @@ function Board:initializeTiles()
 
     self.baseColors = {}
 
-    local onlyColor = (MIN_NUM_TILES_TYPES + self.level) <= 18 -- only different colors (when level <= 18)
+    local numTypes = MIN_NUM_TILES_TYPES + self.level
 
-    for i = 1, MIN_NUM_TILES_TYPES + self.level do
+    local onlyColor = numTypes <= 18 -- only different colors (when level <= 18)
+
+    for i = 1, numTypes do
         local newColor = {
             color = math.random(18),
             variety = math.min(math.random(1, self.level), 6)
