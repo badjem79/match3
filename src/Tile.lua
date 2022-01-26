@@ -36,11 +36,11 @@ function Tile:init(x, y, color, variety, explosive)
     end
 
     self.shinyColors = {
-        [1] = {174/255, 187/255, 1, 1},
-        [2] = {146/255, 178/255, 1, 1},
+        [1] = {174/255, 187/255, 1, 0.5},
+        [2] = {146/255, 178/255, 1, 0.7},
         [3] = {138/255, 211/255, 1, 1},
-        [4] = {182/255, 1, 253/255, 1},
-        [5] = {113/255, 1, 241/255, 1}
+        [4] = {182/255, 1, 253/255, 0.7},
+        [5] = {113/255, 1, 241/255, 0.5}
     }
 
 end
@@ -73,11 +73,15 @@ function Tile:render(x, y)
 
     -- draw tile itself
     love.graphics.setColor(1, 1, 1, 1)
-    if self.explosive then
-        love.graphics.setColor(self.shinyColors[1])
-    end
+
     love.graphics.draw(gTextures['main'], gFrames['tiles'][self.color][self.variety],
         self.x + x + 16, self.y + y + 16, math.rad(self.rotation), 1 , 1, 16, 16)
+    
+    if self.explosive then
+        love.graphics.setColor(self.shinyColors[1])
+        love.graphics.draw(gTextures['shine'], self.x + x + 4, self.y + y + 4)
+    end
+    
     love.graphics.setColor(1, 1, 1, 1)
 
 end
